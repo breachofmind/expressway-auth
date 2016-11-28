@@ -1,0 +1,29 @@
+{
+  "name": "expressway-auth",
+  "version": "1.0.0",
+  "description": "Provides user auth to your expressway app",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/breachofmind/expressway-auth.git"
+  },
+  "keywords": [
+    "auth",
+    "express",
+    "node",
+    "passport"
+  ],
+  "author": "Mike Adamczyk <mike@bom.us>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/breachofmind/expressway-auth/issues"
+  },
+  "homepage": "https://github.com/breachofmind/expressway-auth#readme",
+  "dependencies": {
+    "passport": "^0.3.2",
+    "passport-local": "^1.0.0"
+  }
+}
