@@ -9,6 +9,8 @@ var Expressway = require('expressway');
  */
 class AuthModule extends Expressway.Module
 {
+    get alias() { return "$auth" }
+
     /**
      * Constructor
      * @param app Application
@@ -24,7 +26,14 @@ class AuthModule extends Expressway.Module
             'LocaleProvider'
         );
 
-        this.baseUri = "/auth";
+        this.baseUri    = "/auth";
+        this.successUri = "/";
+        this.loginUri   = this.baseUri + "/login";
+        this.forgotUri  = this.baseUri + "/login/reset";
+        this.loginView  = "auth/login";
+        this.forgotView  = "auth/forgot";
+        this.resetView  = "auth/reset";
+        this.resetEmailView  = "email/reset";
     }
 
 
@@ -35,7 +44,7 @@ class AuthModule extends Expressway.Module
      */
     register(app,controllerService)
     {
-        this.parent('AppModule', this.baseUri);
+        this.parent('AppModule');
 
         controllerService.addDirectory(__dirname+'/../middlewares/');
         controllerService.addDirectory(__dirname+'/../controllers/');
@@ -56,7 +65,7 @@ class AuthModule extends Expressway.Module
     boot(modelService)
     {
         if (! modelService.has('User')) {
-            throw ('AuthModule: "User" model is required to use basic Auth functionality');
+            throw ('AuthModule: User model is required to use basic Auth functionality');
         }
 
         // Assign global middleware.

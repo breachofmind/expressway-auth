@@ -12,10 +12,10 @@ class RedirectIfLoggedIn extends Expressway.Middleware
         return "Redirects to AuthController.successURI if user is logged in";
     }
 
-    method(request,response,next,controller)
+    method(request,response,next,$auth)
     {
         if (request.user) {
-            let uri = controller.AuthController.successUri;
+            let uri = $auth.successUri;
             return response.redirect(uri);
         }
         next();

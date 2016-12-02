@@ -1,6 +1,8 @@
 "use strict";
 
 var Expressway = require('expressway');
+var app = Expressway.app;
+var $auth = app.get('$auth');
 
 class AuthController extends Expressway.Controller
 {
@@ -11,10 +13,6 @@ class AuthController extends Expressway.Controller
     constructor(app)
     {
         super(app);
-
-        this.loginURI = "/auth/login";
-        this.forgotURI = "/auth/login/reset";
-        this.successURI = "/";
 
         this.middleware('login', 'RedirectIfLoggedIn');
     }
@@ -28,9 +26,8 @@ class AuthController extends Expressway.Controller
     {
         var flash = request.flash('message');
 
-        return view('auth/login')
-            .set({title: "Login"})
-            .use({
+        return view($auth.loginView).use({
+                title: "Login",
                 message: flash[0] || "",
                 username:request.query.username || ""
             });
@@ -45,9 +42,10 @@ class AuthController extends Expressway.Controller
     {
         var flash = request.flash('message');
 
-        return view('auth/forgot')
-            .set({title: "Reset Password"})
-            .use({message: flash[0] || ""});
+        return view($auth.forgotView).use({
+                title: "Reset Password",
+                message: flash[0] || ""
+            });
     }
 
     /**
@@ -61,7 +59,7 @@ class AuthController extends Expressway.Controller
             if (! user) {
                 return next();
             }
-            return view('auth/reset', {requester: user});
+            return view($auth.resetView, {requester: user});
         })
     }
 
@@ -70,14 +68,14 @@ class AuthController extends Expressway.Controller
      *
      * Allows the user to securely reset their password.
      */
-    request_reset(request,response,next, User,encrypt,url,log,mail,app,domain,config)
+    request_reset(request,response,next,User,encrypt,url,log,mail,domain,config)
     {
         return User.findOne({email: request.body.username}).exec().then(user =>
         {
             // If no user found,
             // return to the login screen with a message.
             if (! user) {
-                return response.redirectWithFlash(this.loginURI, 'message', {
+                return response.redirectWithFlash($auth.loginUri, 'message', {
                     text: request.lang('auth.err_user_missing'),
                     type: 'alert'
                 });
@@ -88,13 +86,13 @@ class AuthController extends Expressway.Controller
             user.reset_token = hash;
             user.save();
 
-            var resetLink = url(`${this.forgotURI}/${hash}`);
+            var resetLink = url(`${$auth.forgotUri}/${hash}`);
 
             mail({
                 from:    `Administrator <${config('admin_email', 'info@'+domain)}>`,
                 to:      user.email,
                 subject: 'Password Reset',
-                view:    'email/reset',
+                view:    $auth.resetEmailView,
                 data:    {resetLink: resetLink}
 
             }).then(info => {
@@ -109,7 +107,7 @@ class AuthController extends Expressway.Controller
                 type: 'success'
             });
 
-            return response.redirect(this.forgotURI)
+            return response.redirect($auth.forgotUri)
         });
     }
 
@@ -118,12 +116,12 @@ class AuthController extends Expressway.Controller
      *
      * Given the reset token, change the user's password.
      */
-    perform_reset(request,response,next, User, encrypt,log)
+    perform_reset(request,response,next,User,encrypt,log)
     {
         var newPassword = request.body.password;
 
         if (! newPassword || newPassword == "") {
-            return response.redirectWithFlash(this.loginURI, 'message', {
+            return response.redirectWithFlash($auth.loginUri, 'message', {
                 success: false,
                 text: request.lang('auth.err_no_password'),
                 type: 'alert'
@@ -134,7 +132,7 @@ class AuthController extends Expressway.Controller
             // If no user found,
             // return to the login screen with a message.
             if (! user) {
-                return response.redirectWithFlash(this.loginURI, 'message', {
+                return response.redirectWithFlash($auth.loginUri, 'message', {
                     success: false,
                     text: request.lang('auth.err_user_missing'),
                     type: 'alert'
@@ -145,12 +143,12 @@ class AuthController extends Expressway.Controller
                 user.reset_token = "";
                 user.save();
                 log.warn('User "%s" reset password', user.email);
-                return response.redirectWithFlash(this.loginURI+"?username="+user.email, 'message', {
+                return response.redirectWithFlash($auth.loginUri+"?username="+user.email, 'message', {
                     text: request.lang('auth.password_reset'),
                     type: 'success'
                 });
             }, err => {
-                return response.redirectWithFlash(this.loginURI, 'message', {
+                return response.redirectWithFlash($auth.loginUri, 'message', {
                     success: false,
                     text: request.lang('auth.'+err.message),
                     type: 'alert'
@@ -167,11 +165,11 @@ class AuthController extends Expressway.Controller
     logout(request,response,next,log)
     {
         if (request.user) {
-            log.access('User logging out: %s', request.user.id);
+            log.warn('User logging out: %s', request.user.id);
         }
         request.logout();
 
-        return response.redirectWithFlash(this.loginURI, 'message', {
+        return response.redirectWithFlash($auth.loginUri, 'message', {
             text: request.lang('auth.logged_out'),
             type:'success'
         });
@@ -186,11 +184,12 @@ class AuthController extends Expressway.Controller
     authenticate(request,response,next,passport)
     {
         var opts = {badRequestMessage: 'auth.err_missing_credentials'};
+        var redirectTo = request.query.r || $auth.successUri;
 
         // Fires if there was an error...
         var kill = info =>
         {
-            return response.redirectWithFlash(this.loginURI, 'message', {
+            return response.redirectWithFlash($auth.loginUri, 'message', {
                 success: false,
                 text:    request.lang(info.message),
                 type:    'alert'
@@ -210,8 +209,8 @@ class AuthController extends Expressway.Controller
                 if (err) return kill(info);
 
                 return request.ajax
-                    ? response.smart({success:true, user:user, redirect:this.successURI}, 200)
-                    : response.redirect(this.successURI);
+                    ? response.smart({success:true, user:user, redirect:$auth.successUri}, 200)
+                    : response.redirect(redirectTo);
             });
 
         })(request,response,next);
