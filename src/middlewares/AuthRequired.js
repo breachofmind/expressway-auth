@@ -5,7 +5,7 @@ var Expressway = require('expressway');
 class AuthRequired extends Expressway.Middleware
 {
     get type() {
-        return "AuthModule"
+        return "AuthModule";
     }
 
     get description() {
@@ -19,7 +19,7 @@ class AuthRequired extends Expressway.Middleware
         // Get the auth page url.
         let referer = request.originalUrl || "";
         let loginUrl = $auth.loginUri;
-        let url = loginUrl + (referer? "?r="+encodeURI(referer) : "");
+        let url = loginUrl + (referer? "?forward="+encodeURI(referer) : "");
 
         return response.redirectWithFlash(url, 'message', {
             text: request.lang('auth.err_login_required'),

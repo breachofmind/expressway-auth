@@ -14,6 +14,8 @@ class AuthController extends Expressway.Controller
     {
         super(app);
 
+        this.defaults = [];
+
         this.middleware('login', 'RedirectIfLoggedIn');
     }
 
@@ -24,13 +26,14 @@ class AuthController extends Expressway.Controller
      */
     login(request,response,next,view)
     {
-        var flash = request.flash('message');
+        let flash = request.flash('message');
 
-        return view($auth.loginView).use({
-                title: "Login",
-                message: flash[0] || "",
-                username:request.query.username || ""
-            });
+        return view($auth.loginView, {
+            title: "Login",
+            message: flash[0] || "",
+            username:request.query.username || ""
+
+        }).use(this.defaults);
     }
 
     /**
@@ -40,12 +43,13 @@ class AuthController extends Expressway.Controller
      */
     forgot(request,response,next,view)
     {
-        var flash = request.flash('message');
+        let flash = request.flash('message');
 
-        return view($auth.forgotView).use({
-                title: "Reset Password",
-                message: flash[0] || ""
-            });
+        return view($auth.forgotView, {
+            title: "Reset Password",
+            message: flash[0] || ""
+
+        }).use(this.defaults);
     }
 
     /**
@@ -59,7 +63,7 @@ class AuthController extends Expressway.Controller
             if (! user) {
                 return next();
             }
-            return view($auth.resetView, {requester: user});
+            return view($auth.resetView, {requester: user}).use(this.defaults);
         })
     }
 
@@ -82,11 +86,11 @@ class AuthController extends Expressway.Controller
             }
 
             // Generate a reset link.
-            var hash = encrypt(user.email, Date.now().toString());
+            let hash = encrypt(user.email, Date.now().toString());
             user.reset_token = hash;
             user.save();
 
-            var resetLink = url(`${$auth.forgotUri}/${hash}`);
+            let resetLink = url(`${$auth.forgotUri}/${hash}`);
 
             mail({
                 from:    `Administrator <${config('admin_email', 'info@'+domain)}>`,
@@ -118,7 +122,7 @@ class AuthController extends Expressway.Controller
      */
     perform_reset(request,response,next,User,encrypt,log)
     {
-        var newPassword = request.body.password;
+        let newPassword = request.body.password;
 
         if (! newPassword || newPassword == "") {
             return response.redirectWithFlash($auth.loginUri, 'message', {
@@ -183,11 +187,11 @@ class AuthController extends Expressway.Controller
      */
     authenticate(request,response,next,passport)
     {
-        var opts = {badRequestMessage: 'auth.err_missing_credentials'};
-        var redirectTo = request.query.r || $auth.successUri;
+        let opts = {badRequestMessage: 'auth.err_missing_credentials'};
+        let redirectTo = request.query.forward || $auth.successUri;
 
         // Fires if there was an error...
-        var kill = info =>
+        let kill = info =>
         {
             return response.redirectWithFlash($auth.loginUri, 'message', {
                 success: false,

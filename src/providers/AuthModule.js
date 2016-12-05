@@ -26,14 +26,16 @@ class AuthModule extends Expressway.Module
             'LocaleProvider'
         );
 
-        this.baseUri    = "/auth";
-        this.successUri = "/";
-        this.loginUri   = this.baseUri + "/login";
-        this.forgotUri  = this.baseUri + "/login/reset";
-        this.loginView  = "auth/login";
-        this.forgotView  = "auth/forgot";
-        this.resetView  = "auth/reset";
-        this.resetEmailView  = "email/reset";
+        this.package = require('../../package.json');
+
+        this.baseUri        = "/auth";
+        this.successUri     = "/";
+        this.loginUri       = this.baseUri + "/login";
+        this.forgotUri      = this.baseUri + "/login/reset";
+        this.loginView      = "auth/login";
+        this.forgotView     = "auth/forgot";
+        this.resetView      = "auth/reset";
+        this.resetEmailView = "email/reset";
     }
 
 
@@ -41,8 +43,9 @@ class AuthModule extends Expressway.Module
      * Register with the application.
      * @param app Application
      * @param controllerService ControllerService
+     * @param $app Module
      */
-    register(app,controllerService)
+    register(app,controllerService,$app)
     {
         this.parent('AppModule');
 
@@ -51,9 +54,12 @@ class AuthModule extends Expressway.Module
 
         app.register('encrypt', this.encrypt, "Function for encrypting passwords securely");
 
+        // The app needs the BasicAuth middleware to get the user.
+        $app.middleware.push('BasicAuth');
+
         // Attach the authenticated user to the view for use in templates.
         app.on('view.created', (view,request) => {
-            view.data.user = request.user;
+            view.use('currentUser', request.user);
         });
     }
 
@@ -70,6 +76,7 @@ class AuthModule extends Expressway.Module
 
         // Assign global middleware.
         this.add([
+            'Init',
             'ConsoleLogging',
             'Localization',
             'BodyParser',
