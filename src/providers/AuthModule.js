@@ -2,6 +2,7 @@
 
 var crypto   = require('crypto');
 var Expressway = require('expressway');
+var path = require('path');
 
 /**
  * Provides basic authentication with passport.
@@ -36,26 +37,40 @@ class AuthModule extends Expressway.Module
         this.forgotView     = "auth/forgot";
         this.resetView      = "auth/reset";
         this.resetEmailView = "email/reset";
+
+        this.middleware = [
+            'Init',
+            'ConsoleLogging',
+            'Localization',
+            'BodyParser',
+            'Session',
+            'CSRF',
+            'Flash',
+            'BasicAuth',
+        ];
     }
 
 
     /**
      * Register with the application.
      * @param app Application
-     * @param controllerService ControllerService
      * @param $app Module
+     * @param log Winston
      */
-    register(app,controllerService,$app)
+    register(app,$app,log)
     {
         this.parent('AppModule');
 
-        controllerService.addDirectory(__dirname+'/../middlewares/');
-        controllerService.addDirectory(__dirname+'/../controllers/');
+        this.directories({
+            middlewares: path.resolve(__dirname, '../middlewares'),
+            controllers: path.resolve(__dirname, '../controllers'),
+        });
 
         app.register('encrypt', this.encrypt, "Function for encrypting passwords securely");
 
-        // The app needs the BasicAuth middleware to get the user.
-        $app.middleware.push('BasicAuth');
+        if ($app.middleware && $app.middleware.indexOf('BasicAuth') == -1) {
+            log.warn('"BasicAuth" middleware is required in your app!');
+        }
 
         // Attach the authenticated user to the view for use in templates.
         app.on('view.created', (view,request) => {
@@ -75,16 +90,7 @@ class AuthModule extends Expressway.Module
         }
 
         // Assign global middleware.
-        this.add([
-            'Init',
-            'ConsoleLogging',
-            'Localization',
-            'BodyParser',
-            'Session',
-            'CSRF',
-            'Flash',
-            'BasicAuth',
-        ]);
+        this.add(this.middleware);
 
         // Assign routes.
         this.add({

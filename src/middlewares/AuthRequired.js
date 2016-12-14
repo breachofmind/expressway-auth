@@ -29,4 +29,3 @@ class AuthRequired extends Expressway.Middleware
 }
 
 module.exports = AuthRequired;
-
