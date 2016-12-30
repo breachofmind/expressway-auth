@@ -1,54 +1,47 @@
 "use strict";
 
-var Expressway = require('expressway');
+var Provider = require('expressway').Provider;
+var passport = require('passport');
+var crypto = require('crypto');
 
-const CRUD = ['create','read','update','delete'];
-
-/**
- * Provides a gate that checks user permissions.
- * @author Mike Adamczyk <mike@bom.us>
- */
-class GateProvider extends Expressway.Provider
+class GateProvider extends Provider
 {
-    /**
-     * Constructor.
-     * @param app Application
-     */
     constructor(app)
     {
         super(app);
 
-        this.requires(
-            'LoggerProvider',
-            'ModelProvider'
-        );
+        app.service(encrypt);
 
-        app.register('permissionBuilder', this.permissionBuilder, "A helper function for building permissions");
+        app.service('passport', passport);
+
+        app.service('gate', app.load(require('../services/GateService')));
+
+        app.service(currentUser.callable());
     }
+}
 
-    /**
-     * Register with the application.
-     * @param app Application
-     */
-    register(app)
-    {
-        Expressway.Policy = require('../Policy');
+/**
+ * Encrypt a password with a salt.
+ * @param password string
+ * @param salt string
+ * @returns {string}
+ */
+function encrypt(password, salt)
+{
+    return crypto.createHmac("md5",salt).update(password).digest('hex');
+}
 
-        app.singleton('gate', require('../Gate'), "A service for checking user permissions via policies");
-    }
-
-
-    /**
-     * A helper function for building permissions.
-     * @param modelNames {Array}
-     * @returns {Array}
-     */
-    permissionBuilder(modelNames = [])
-    {
-        return modelNames.map(model => {
-            return CRUD.map(action => { return model+"."+action })
-        });
-    }
+/**
+ * Return the current user.
+ * @injectable
+ * @param request
+ * @param response
+ * @param next
+ * @returns {*|null}
+ */
+function currentUser(request,response,next)
+{
+    return request.user;
 }
 
 module.exports = GateProvider;

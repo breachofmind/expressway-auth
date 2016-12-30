@@ -1,4 +1,3 @@
-module.exports = [
-    require('./src/providers/AuthModule'),
-    require('./src/providers/GateProvider'),
-];
+"use strict";
+
+module.exports = require('./src/AuthExtension');

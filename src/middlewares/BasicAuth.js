@@ -1,109 +1,139 @@
 "use strict";
 
-var Expressway = require('expressway');
-var app = Expressway.app;
-var passport = require('passport');
+var Middleware = require('expressway').Middleware;
 var Strategy = require('passport-local').Strategy;
 
-class BasicAuth extends Expressway.Middleware
+class BasicAuth extends Middleware
 {
-    get type() {
-        return 'AuthModule'
-    }
-
     get description() {
         return "Set up passport and user authentication strategy"
     }
 
-
-    constructor()
+    /**
+     * Constructor.
+     * @injectable
+     * @param app Application
+     * @param utils Object
+     */
+    constructor(app)
     {
-        super();
+        super(app);
 
-        passport.use(new Strategy(this.strategy));
-        passport.serializeUser(this.serialize);
-        passport.deserializeUser(this.deserialize);
-
-        app.register('passport', passport, "The passport instance");
+        app.on('view.render', function(view,request) {
+            view.use('currentUser', request.user);
+        });
     }
 
-    dispatch()
+    /**
+     * Dispatch the middleware.
+     * @param extension Extension
+     * @param passport passport
+     * @returns {Array}
+     */
+    dispatch(extension,passport)
     {
+        passport.use(new Strategy(this.app.call(this,'strategy')));
+        passport.serializeUser(this.app.call(this,'serialize'));
+        passport.deserializeUser(this.app.call(this,'deserialize'));
+
         let init = passport.initialize();
         let sess = passport.session();
         return [
-            function PassportInitialize(...args) {
-                return init(...args);
+            function PassportInitialize(request,response,next) {
+                return init(...arguments);
             },
-            function PassportSession(...args) {
-                return sess(...args);
-            }
+            function PassportSession(request,response,next) {
+                return sess(...arguments);
+            },
         ]
     }
 
     /**
-     * The local strategy to use for authentication.
-     * @param username string
-     * @param password string
-     * @param done Function
+     * Create a local strategy.
+     * @injectable
+     * @param User
+     * @param log
+     * @returns {Function}
      */
-    strategy(username,password,done)
+    strategy(User,log)
     {
-        let [User,log] = app.get('User','log');
-
-        log.warn("Login attempt: '%s'", username);
-
-        User.findOne({ email: username }).populate(User.populate).exec().then( user =>
+        /**
+         * The local strategy to use for authentication.
+         * @param username string
+         * @param password string
+         * @param done Function
+         */
+        return function strategy(username,password,done)
         {
-            // If user is not found, fail with message.
-            if (! user) {
-                log.warn("User does not exist: '%s'", username);
-                return done(null, false, { message: 'auth.err_user_missing' });
-            }
+            log.warn("login attempt: '%s'", username);
 
-            try {
-                user.authenicate(password);
-            } catch(err) {
-                log.warn("Login attempt failed: '%s'", username);
-                return done(null, false, { message: 'auth.err_'+err });
-            }
+            User.findOne({ email: username }).populate(User.populate).exec().then( user =>
+            {
+                // If user is not found, fail with message.
+                if (! user) {
+                    log.warn("user does not exist: '%s'", username);
+                    return done(null, false, { message: 'auth.err_user_missing' });
+                }
 
-            // If they got this far, they were successfully authenticated.
-            log.warn("Login successful: '%s' %s", username, user.id);
+                try {
+                    user.authenicate(password);
+                } catch(err) {
+                    log.warn("login attempt failed: '%s'", username);
+                    return done(null, false, { message: 'auth.err_'+err });
+                }
 
-            return done(null, user);
+                // If they got this far, they were successfully authenticated.
+                log.warn("login successful: '%s' %s", username, user.id);
 
-        }, function(err) {
+                return done(null, user);
 
-            // There was an error, probably database related...
-            return done(err);
-        });
+            }, function(err) {
+
+                // There was an error, probably database related...
+                return done(err);
+            });
+        }
     }
 
     /**
-     * Serializes user from the user id.
-     * @param user User model
-     * @param done function
+     * Return the serialize function.
+     * @injectable
+     * @returns {serialize}
      */
-    serialize(user,done)
+    serialize()
     {
-        done(null, user._id);
+        /**
+         * Serializes user from the user id.
+         * @param user User model
+         * @param done function
+         */
+        return function serialize(user,done) {
+            done(null, user._id);
+        }
+
     }
 
     /**
-     * Deserializes user from session.
-     * @param id string
-     * @param done function
+     * Return the deserialize function.
+     * @injectable
+     * @param User Model
+     * @returns {serialize}
      */
-    deserialize(id,done)
+    deserialize(User)
     {
-        let User = app.get('User');
-
-        User.findById(id).populate(User.populate).exec().then(user => {
-            done(null, user);
-        }, err => {
-            done(err,null);
-        });
+        /**
+         * Deserializes user from session.
+         * @param id string
+         * @param done function
+         */
+        return function deserialize(id,done)
+        {
+            User.findById(id).populate(User.populate).exec().then(user => {
+                done(null, user);
+            }, err => {
+                done(err,null);
+            });
+        }
     }
 }
 
