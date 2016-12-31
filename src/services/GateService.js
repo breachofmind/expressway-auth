@@ -1,30 +1,9 @@
 "use strict";
 
+var Policy = require('../Policy');
+
 module.exports = function(app,log,debug)
 {
-    /**
-     * Policy class.
-     * @constructor
-     */
-    class Policy
-    {
-        get name() {
-            return this.constructor.name;
-        }
-
-        /**
-         * Run this method before any other method is called.
-         * @injectable
-         * @param user
-         * @param ability
-         * @param object
-         * @returns boolean|void
-         */
-        before(user,ability,object) {
-            // Unimplemented
-        }
-    }
-
     /**
      * Gate class
      * @author Mike Adamczyk <mike@bom.us>
@@ -52,21 +31,29 @@ module.exports = function(app,log,debug)
          * Check if the gate allows the user to proceed given the ability and object.
          * @param user User
          * @param ability string - ie, "create" or "Object.create", where Object is the Policy name
+         * @param object Model - optional
          * @returns {boolean}
          */
         allows(user, ability, object)
         {
-            let policyName = ability, policy;
-            if (ability.indexOF(".") > -1) {
+            let policy,
+                policyName = ability;
+
+            if (ability.indexOf(".") > -1) {
                 [policyName,ability] = ability.split(".");
+
+                // If no object is given, lets assume the
+                // object could be a model blueprint.
                 if (! object && app.models.has(policyName)) {
                     object = app.models.get(policyName);
                 }
             }
-            policy = this.policy(policyName);
-
-            // If there isn't a policy defined for this action, don't allow.
-            if (! policy) return false;
+            try {
+                policy = this.policy(policyName);
+            } catch (err) {
+                // If there isn't a policy defined for this action, don't allow.
+                return false;
+            }
 
             if (policy instanceof Policy)
             {
@@ -94,6 +81,8 @@ module.exports = function(app,log,debug)
         {
             if (typeof policy == 'object') {
                 policy = this.create(policy);
+            } else {
+                policy.$constructor = false;
             }
             this.policies[ability] = policy;
             debug("GateService policy defined: %s.%s", policy.name, ability);
@@ -120,7 +109,7 @@ module.exports = function(app,log,debug)
                 if (key == 'name') return;
                 CustomPolicy.prototype[key] = value;
             });
-            return CustomPolicy;
+            return new CustomPolicy;
         }
 
         /**
