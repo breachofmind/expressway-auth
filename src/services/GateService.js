@@ -1,6 +1,8 @@
 "use strict";
 
 var Policy = require('../Policy');
+var ObjectCollection = require('expressway/src/ObjectCollection');
+var _ = require('lodash');
 
 module.exports = function(app,log,debug)
 {
@@ -8,23 +10,12 @@ module.exports = function(app,log,debug)
      * Gate class
      * @author Mike Adamczyk <mike@bom.us>
      */
-    class Gate
+    class Gate extends ObjectCollection
     {
-        /**
-         * Constructor.
-         */
-        constructor()
+        constructor(app)
         {
-            this.policies = {};
-        }
-
-        /**
-         * Get the name.
-         * @returns {String}
-         */
-        get name()
-        {
-            return this.constructor.name;
+            super(app,'policy');
+            this.class = Policy;
         }
 
         /**
@@ -41,98 +32,71 @@ module.exports = function(app,log,debug)
 
             if (ability.indexOf(".") > -1) {
                 [policyName,ability] = ability.split(".");
-
-                // If no object is given, lets assume the
-                // object could be a model blueprint.
-                if (! object && app.models.has(policyName)) {
-                    object = app.models.get(policyName);
-                }
-            }
-            try {
-                policy = this.policy(policyName);
-            } catch (err) {
-                // If there isn't a policy defined for this action, don't allow.
-                return false;
             }
 
-            if (policy instanceof Policy)
-            {
-                let passed = app.call(policy, 'before', [user, ability, object]);
-                if (typeof passed === 'boolean') {
-                    return passed;
-                }
-                if (typeof policy[ability] !== 'function') {
-                    throw new Error(`policy method does not exist: ${policy.name}.${ability}`);
-                }
-                return app.call(policy, ability, [user,object]);
+            // If there isn't a policy defined for this action, don't allow.
+            if (! this.has(policyName)) return false;
+
+            policy = this.get(policyName);
+
+            let passed = app.call(policy, 'before', [user, ability, object]);
+            if (typeof passed === 'boolean') {
+                return passed;
+            }
+            if (typeof policy[ability] !== 'function') {
+                throw new Error(`policy method does not exist: ${policy.name}.${ability}`);
             }
 
-            return app.call(policy,null,[user,object]);
+            return app.call(policy, ability, [user,ability,object]);
         }
 
         /**
-         * Define a custom policy.
-         * Ability can be a Model name
+         * Add or create a new policy.
          * @param ability string
-         * @param policy function|Policy|object
+         * @param policy Policy|function|object
          * @returns {Gate}
          */
-        define(ability, policy)
+        add(ability,policy)
         {
-            if (typeof policy == 'object') {
-                policy = this.create(policy);
-            } else {
-                policy.$constructor = false;
-            }
-            this.policies[ability] = policy;
-            debug("GateService policy defined: %s.%s", policy.name, ability);
-            return this;
-        }
-
-        /**
-         * Policy factory function.
-         * @param object Object
-         * @returns {CustomPolicy}
-         */
-        create(object)
-        {
-            if (object instanceof Policy) {
-                return object;
-            }
-            class CustomPolicy extends Policy
-            {
-                get name() {
-                    return object.name || 'CustomPolicy';
+            if (typeof ability == 'function') {
+                // We're adding a policy function.
+                let instance = new ability(policy);
+                if (! (instance instanceof Policy)) {
+                    throw new TypeError('constructor is not instance of policy');
                 }
+                return this.add(instance.name, instance);
+            } else if (policy instanceof Policy) {
+                // We're adding a policy instance.
+                return super.add(ability,policy);
             }
-            _.each(object, (value,key) => {
-                if (key == 'name') return;
-                CustomPolicy.prototype[key] = value;
-            });
-            return new CustomPolicy;
+
+            let name = policy.name;
+
+            // We're building a policy with a factory.
+            class CustomPolicy extends Policy {
+                get name() { return name || "CustomPolicy" }
+            }
+            if (typeof policy == 'object') {
+                delete policy.name;
+                _.assign(CustomPolicy.prototype, policy);
+            } else if (typeof policy == 'function') {
+                CustomPolicy.prototype[ability] = policy;
+            } else {
+                throw new TypeError('policy should be function, object or policy instance');
+            }
+
+            return super.add(ability, new CustomPolicy);
         }
 
         /**
-         * Check if a policy ability is provided.
-         * @param ability string
-         * @returns {boolean}
+         * Alias to add()
+         * @param ability
+         * @param policy
+         * @returns {Gate}
          */
-        has(ability)
+        define(ability,policy)
         {
-            return this.policies.hasOwnProperty(ability);
-        }
-
-        /**
-         * Get a policy.
-         * @param ability string
-         * @returns {Policy|Function}
-         */
-        policy(ability)
-        {
-            if (! this.has(ability)) {
-                throw new Error(`policy does not exist: ${ability}`);
-            }
-            return this.policies[ability];
+            return this.add(ability,policy);
         }
     }
 

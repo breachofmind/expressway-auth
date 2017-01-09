@@ -30,17 +30,53 @@ describe('Gate', function()
     });
     describe('gate.define()', function() {
 
+        class TestPolicy extends Policy
+        {
+            get name() {
+                return this.ref.model;
+            }
+            before(user,ability,object) {
+                return true;
+            }
+            breakfast(user,ability,object) {
+                return false;
+            }
+            lunch(user,ability,object) {
+                return false;
+            }
+        }
+
+        var customPolicyObject = {
+            name: "Custom",
+            before(user,ability,object) {
+                user.beforeCalled = true;
+            },
+            breakfast(user,ability,object) {
+                return user.beforeCalled;
+            },
+            lunch(user,ability,object) {
+                return false;
+            },
+            dinner(user,ability,object,testStr) {
+                return testStr;
+            }
+        };
+
+
         it('should be a method', () => {
             let gate = app.get('gate');
             expect(gate).to.respondTo('define');
         });
         it('simple: should define a named policy', () => {
             let gate = app.get('gate');
-            let fn = function viewPolicy(user,object) {
+            let fn = function viewPolicy(user,ability,object) {
                 return true;
             };
             gate.define('view', fn);
-            expect(gate.policy('view')).to.equal(fn);
+            let policy = gate.get('view');
+            expect(policy).to.be.instanceOf(Policy);
+            expect(policy).to.respondTo('view');
+            expect(policy.view).to.equal(fn);
         });
         it('simple: should return true for gate.allows()', () => {
             let gate = app.get('gate');
@@ -49,11 +85,11 @@ describe('Gate', function()
         });
         it('medium: should define a named policy where user object has test role', () => {
             let gate = app.get('gate');
-            let fn = function userPolicy(user,object) {
+            let fn = function userPolicy(user,ability,object) {
                 return user.role === "admin";
             };
             gate.define('admin', fn);
-            expect(gate.policy('admin')).to.equal(fn);
+            expect(gate.get('admin').admin).to.equal(fn);
         });
         it('medium: should return true for user.role = admin', () => {
             let gate = app.get('gate');
@@ -62,7 +98,51 @@ describe('Gate', function()
         it('medium: should return false for user.role = nonadmin', () => {
             let gate = app.get('gate');
             expect(gate.allows({role:"nonadmin"}, 'admin')).to.equal(false);
-        })
+        });
 
+        it('hard: should define a custom policy from an object', () => {
+            let gate = app.get('gate');
+            gate.define('custom', customPolicyObject);
+            expect(gate.get('custom')).to.be.instanceOf(Policy);
+            expect(gate.get('custom')).to.respondTo('breakfast');
+            expect(gate.get('custom')).to.respondTo('lunch');
+            expect(gate.get('custom').name).to.equal('Custom');
+        });
+
+        it('hard: should return true for first method where user object manipulated in before() call', () => {
+            let gate = app.get('gate');
+            expect(gate.allows({beforeCalled: false},'custom.breakfast',{})).to.equal(true);
+        });
+        it('hard: should return false for second method', () => {
+            let gate = app.get('gate');
+            expect(gate.allows({beforeCalled: false},'custom.lunch',{})).to.equal(false);
+        });
+        it('hard: should allow service injection in policy methods', () => {
+            let STRING = "HELLO!";
+            let gate = app.get('gate');
+            app.service('testStr', STRING);
+            expect(gate.allows({beforeCalled:false}, 'custom.dinner', {})).to.equal(STRING);
+        });
+
+        it('pro: should allow building extensions of Policy class with reference object', () => {
+            let gate = app.get('gate');
+            gate.define(TestPolicy,{model:"Test"});
+            let policy = gate.get('Test');
+            expect(policy).to.be.instanceOf(TestPolicy);
+            expect(policy.name).to.equal('Test');
+        });
+        it('pro: should always return true because of before() call', () => {
+            let gate = app.get('gate');
+            expect(gate.allows({},'Test.breakfast')).to.equal(true);
+            expect(gate.allows({},'Test.lunch')).to.equal(true);
+        });
+        it('pro: should allow building extensions of policy with policy instance as argument', () => {
+            let gate = app.get('gate');
+            gate.define('testCustom', new TestPolicy({model:'New'}));
+
+            let policy = gate.get('testCustom');
+            expect(policy).to.be.instanceOf(TestPolicy);
+            expect(policy.name).to.equal('New');
+        })
     })
 });

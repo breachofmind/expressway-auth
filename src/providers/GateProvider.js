@@ -1,7 +1,8 @@
 "use strict";
 
-var Provider = require('expressway').Provider;
+var expressway = require('expressway');
 var Policy = require('../Policy');
+var Provider = expressway.Provider;
 var passport = require('passport');
 var crypto = require('crypto');
 
@@ -14,8 +15,8 @@ class GateProvider extends Provider
         app.service(encrypt);
         app.service('passport', passport);
         app.service('gate', app.load(require('../services/GateService')));
-        app.service('Policy', Policy);
         app.service(currentUser.callable());
+        app.service('Policy',Policy);
     }
 }
 

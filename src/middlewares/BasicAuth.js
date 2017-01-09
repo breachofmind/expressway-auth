@@ -67,7 +67,7 @@ class BasicAuth extends Middleware
         {
             log.warn("login attempt: '%s'", username);
 
-            User.findOne({ email: username }).populate(User.populate).exec().then( user =>
+            User.first({ email: username }).then( user =>
             {
                 // If user is not found, fail with message.
                 if (! user) {
@@ -128,7 +128,7 @@ class BasicAuth extends Middleware
          */
         return function deserialize(id,done)
         {
-            User.findById(id).populate(User.populate).exec().then(user => {
+            User.findById(id).then(user => {
                 done(null, user);
             }, err => {
                 done(err,null);

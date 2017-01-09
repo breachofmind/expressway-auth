@@ -4,7 +4,17 @@
  */
 class Policy
 {
-    get name() {
+    constructor(ref=null)
+    {
+        this.ref = ref;
+    }
+
+    /**
+     * Get the policy name.
+     * @returns String
+     */
+    get name()
+    {
         return this.constructor.name;
     }
 
