@@ -18,7 +18,7 @@ class AuthRequired extends Middleware
         let url = loginUrl + (referer? "?forward="+encodeURI(referer) : "");
 
         return response.redirectWithFlash(url, 'message', {
-            text: request.lang('auth.err_login_required'),
+            text: request.lang('auth.err_loginRequired'),
             type: 'alert'
         });
     }

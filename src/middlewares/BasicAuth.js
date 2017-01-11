@@ -72,14 +72,14 @@ class BasicAuth extends Middleware
                 // If user is not found, fail with message.
                 if (! user) {
                     log.warn("user does not exist: '%s'", username);
-                    return done(null, false, { message: 'auth.err_user_missing' });
+                    return done(null, false, { message: 'auth.err_userMissing' });
                 }
 
                 try {
                     user.authenicate(password);
                 } catch(err) {
-                    log.warn("login attempt failed: '%s'", username);
-                    return done(null, false, { message: 'auth.err_'+err });
+                    log.warn("login attempt failed: '%s' %s", username, err.type);
+                    return done(null, false, { message: err.localeKey });
                 }
 
                 // If they got this far, they were successfully authenticated.

@@ -35,6 +35,24 @@ class AuthController extends Controller
     }
 
     /**
+     * GET /logout
+     *
+     * Logs a user out and redirects to the login page.
+     */
+    logout(request,response,next,auth,log)
+    {
+        if (request.user) {
+            log.warn('User logging out: %s', request.user.id);
+        }
+        request.logout();
+
+        return response.redirectWithFlash(auth.loginUri, 'message', {
+            text: request.lang('auth.logged_out'),
+            type:'success'
+        });
+    }
+
+    /**
      * GET /login/reset
      *
      * For when user forgets their password.
@@ -51,6 +69,48 @@ class AuthController extends Controller
     }
 
     /**
+     * POST /login
+     *
+     * Authenticates a username and password.
+     * POSTing as ajax will return a response in JSON format.
+     */
+    authenticate(request,response,next,auth,passport)
+    {
+        let opts = {badRequestMessage: 'auth.err_missingCredentials'};
+        let redirectTo = request.query.forward || auth.successUri;
+
+        // Fires if there was an error...
+        let kill = function(info) {
+            return response.redirectWithFlash(auth.loginUri, 'message', {
+                success: false,
+                text:    request.lang(info.message),
+                type:    'alert'
+            });
+        };
+
+        // Use passport to authenticate.
+        // Messages are returned in locale format.
+        passport.authenticate('local', opts, (err,user,info) =>
+        {
+            if (err) return next(err);
+
+            if (! user) return kill(info);
+
+            request.logIn(user, err =>
+            {
+                if (err) return kill(info);
+
+                return request.ajax
+                    ? response.smart({success:true, user:user, redirect:auth.successUri}, 200)
+                    : response.redirect(redirectTo);
+            });
+
+        })(request,response,next);
+
+        return true;
+    }
+
+    /**
      * GET /login/reset/:hash
      *
      * Look up a user's reset token.
@@ -59,7 +119,7 @@ class AuthController extends Controller
     {
         view.template(auth.resetView);
 
-        return User.findOne({reset_token: request.params.hash}).exec().then(user => {
+        return User.first({reset_token: request.params.hash}).then(user => {
             if (! user) {
                 return next();
             }
@@ -76,13 +136,13 @@ class AuthController extends Controller
      */
     request_reset(request,response,next,auth,User,encrypt,url,log,mail,config)
     {
-        return User.findOne({email: request.body.username}).exec().then(user =>
+        return User.first({email: request.body.username}).then(user =>
         {
             // If no user found,
             // return to the login screen with a message.
             if (! user) {
                 return response.redirectWithFlash(auth.loginUri, 'message', {
-                    text: request.lang('auth.err_user_missing'),
+                    text: request.lang('auth.err_userMissing'),
                     type: 'alert'
                 });
             }
@@ -129,18 +189,18 @@ class AuthController extends Controller
         if (! newPassword || newPassword == "") {
             return response.redirectWithFlash(auth.loginUri, 'message', {
                 success: false,
-                text: request.lang('auth.err_no_password'),
+                text: request.lang('auth.err_noPassword'),
                 type: 'alert'
             });
         }
-        return User.findOne({reset_token: request.params.hash}).exec().then(user =>
+        return User.first({reset_token: request.params.hash}).then(user =>
         {
             // If no user found,
             // return to the login screen with a message.
             if (! user) {
                 return response.redirectWithFlash(auth.loginUri, 'message', {
                     success: false,
-                    text: request.lang('auth.err_user_missing'),
+                    text: request.lang('auth.err_userMissing'),
                     type: 'alert'
                 });
             }
@@ -161,66 +221,6 @@ class AuthController extends Controller
                 });
             });
         })
-    }
-
-    /**
-     * GET /logout
-     *
-     * Logs a user out and redirects to the login page.
-     */
-    logout(request,response,next,auth,log)
-    {
-        if (request.user) {
-            log.warn('User logging out: %s', request.user.id);
-        }
-        request.logout();
-
-        return response.redirectWithFlash(auth.loginUri, 'message', {
-            text: request.lang('auth.logged_out'),
-            type:'success'
-        });
-    }
-
-    /**
-     * POST /login
-     *
-     * Authenticates a username and password.
-     * POSTing as ajax will return a response in JSON format.
-     */
-    authenticate(request,response,next,auth,passport)
-    {
-        let opts = {badRequestMessage: 'auth.err_missing_credentials'};
-        let redirectTo = request.query.forward || auth.successUri;
-
-        // Fires if there was an error...
-        let kill = function(info) {
-            return response.redirectWithFlash(auth.loginUri, 'message', {
-                success: false,
-                text:    request.lang(info.message),
-                type:    'alert'
-            });
-        };
-
-        // Use passport to authenticate.
-        // Messages are returned in locale format.
-        passport.authenticate('local', opts, (err,user,info) =>
-        {
-            if (err) return next(err);
-
-            if (! user) return kill(info);
-
-            request.logIn(user, err =>
-            {
-                if (err) return kill(info);
-
-                return request.ajax
-                    ? response.smart({success:true, user:user, redirect:auth.successUri}, 200)
-                    : response.redirect(redirectTo);
-            });
-
-        })(request,response,next);
-
-        return true;
     }
 }
 
