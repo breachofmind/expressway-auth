@@ -20,7 +20,7 @@ module.exports = function(app,debug)
             this.class = Policy;
 
             this.on('add', (name,value) => {
-                debug('Gate add policy: %s', name);
+                debug('Gate added policy: %s', name);
             })
         }
 
@@ -39,22 +39,22 @@ module.exports = function(app,debug)
 
             // If there isn't a policy defined for this action, don't allow.
             if (! this.has(policyName)) {
-                return test.fail('auth.gate_policyNotDefined');
+                return test.fail('auth.gate_policyNotDefined', [policyName]);
             }
 
             let policy = this.get(policyName);
 
             if (typeof policy[method] !== 'function') {
-                return test.fail('auth.gate_policyMethodNotDefined');
+                return test.fail('auth.gate_policyMethodNotDefined', [policyName,method]);
             }
 
             // Call the before method first.
-            app.call(policy, 'before', [test,user,ability,object]);
+            app.call(policy, 'before', [test,user,method,object]);
 
             if (test.complete) return test;
 
             // Call the ability method next.
-            app.call(policy, method, [test,user,ability,object]);
+            app.call(policy, method, [test,user,method,object]);
 
             // Return the resulting test.
             return test;
