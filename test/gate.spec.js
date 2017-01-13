@@ -1,5 +1,6 @@
 var expressway = require('expressway');
 var Policy = require('../src/Policy');
+var PolicyTest = require('../src/PolicyTest');
 var path = require('path');
 var mock = require('expressway/src/support/mock');
 var app = expressway({
@@ -21,9 +22,7 @@ describe('Gate', function()
         expect(function() {app.use(provider)}).to.not.throw();
         expect(app.providers.get('GateProvider')).to.be.instanceOf(expressway.Provider);
     });
-    it('should add the Policy class as service', () => {
-        expect(app.services.get('Policy')).to.equal(Policy);
-    });
+
     it('should load the gate service after adding the provider', () => {
         expect(app.services.has('gate')).to.equal(true);
         expect(app.services.get('gate').name).to.equal('Gate');
@@ -35,30 +34,30 @@ describe('Gate', function()
             get name() {
                 return this.ref.model;
             }
-            before(user,ability,object) {
-                return true;
+            before(test,user,ability,object) {
+                test.pass("good");
             }
-            breakfast(user,ability,object) {
-                return false;
+            breakfast(test,user,ability,object) {
+                test.fail("bad");
             }
-            lunch(user,ability,object) {
-                return false;
+            lunch(test,user,ability,object) {
+                test.fail("bad");
             }
         }
 
         var customPolicyObject = {
             name: "Custom",
-            before(user,ability,object) {
+            before(test,user,ability,object) {
                 user.beforeCalled = true;
             },
-            breakfast(user,ability,object) {
-                return user.beforeCalled;
+            breakfast(test,user,ability,object) {
+                if (user.beforeCalled) test.pass('before called');
             },
-            lunch(user,ability,object) {
-                return false;
+            lunch(test,user,ability,object) {
+                test.fail('lunch failed');
             },
-            dinner(user,ability,object,testStr) {
-                return testStr;
+            dinner(test,user,ability,object,testStr) {
+                test.pass(testStr);
             }
         };
 
@@ -69,8 +68,8 @@ describe('Gate', function()
         });
         it('simple: should define a named policy', () => {
             let gate = app.get('gate');
-            let fn = function viewPolicy(user,ability,object) {
-                return true;
+            let fn = function viewPolicy(test,user,ability,object) {
+                return test.pass("good");
             };
             gate.define('view', fn);
             let policy = gate.get('view');
@@ -78,26 +77,41 @@ describe('Gate', function()
             expect(policy).to.respondTo('view');
             expect(policy.view).to.equal(fn);
         });
-        it('simple: should return true for gate.allows()', () => {
+        it('simple: should pass PolicyTest for gate.allows()', () => {
             let gate = app.get('gate');
-            expect(gate.allows({}, 'view', false)).to.equal(true);
-            expect(gate.allows({}, 'view')).to.equal(true);
+            let test = gate.allows({},'view',false);
+
+            expect(test).to.be.instanceOf(PolicyTest);
+            expect(test.complete).to.equal(true);
+            expect(test.passed).to.equal(true);
         });
         it('medium: should define a named policy where user object has test role', () => {
             let gate = app.get('gate');
-            let fn = function userPolicy(user,ability,object) {
-                return user.role === "admin";
+            let fn = function userPolicy(test,user,ability,object) {
+                // Note - the first pass or fail should be the one used.
+                if (user.role === "admin") {
+                    test.pass('is admin!');
+                }
+                test.fail('not admin...');
             };
             gate.define('admin', fn);
             expect(gate.get('admin').admin).to.equal(fn);
         });
         it('medium: should return true for user.role = admin', () => {
             let gate = app.get('gate');
-            expect(gate.allows({role:"admin"}, 'admin')).to.equal(true);
+            let test = gate.allows({role:"admin"}, 'admin');
+            expect(test).to.be.instanceOf(PolicyTest);
+            expect(test.complete).to.equal(true);
+            expect(test.passed).to.equal(true);
+            expect(test.message).to.equal('is admin!');
         });
         it('medium: should return false for user.role = nonadmin', () => {
             let gate = app.get('gate');
-            expect(gate.allows({role:"nonadmin"}, 'admin')).to.equal(false);
+            let test = gate.allows({role:"nonadmin"}, 'admin');
+            expect(test).to.be.instanceOf(PolicyTest);
+            expect(test.complete).to.equal(true);
+            expect(test.passed).to.equal(false);
+            expect(test.message).to.equal('not admin...');
         });
 
         it('hard: should define a custom policy from an object', () => {
@@ -111,17 +125,28 @@ describe('Gate', function()
 
         it('hard: should return true for first method where user object manipulated in before() call', () => {
             let gate = app.get('gate');
-            expect(gate.allows({beforeCalled: false},'custom.breakfast',{})).to.equal(true);
+            let test = gate.allows({beforeCalled: false},'custom.breakfast',{});
+            expect(test).to.be.instanceOf(PolicyTest);
+            expect(test.complete).to.equal(true);
+            expect(test.passed).to.equal(true);
+            expect(test.message).to.equal('before called');
+
         });
-        it('hard: should return false for second method', () => {
+        it('hard: should return failing test for second method', () => {
             let gate = app.get('gate');
-            expect(gate.allows({beforeCalled: false},'custom.lunch',{})).to.equal(false);
+            let test = gate.allows({beforeCalled: false},'custom.lunch',{});
+            expect(test.complete).to.equal(true);
+            expect(test.passed).to.equal(false);
+            expect(test.message).to.equal('lunch failed');
         });
         it('hard: should allow service injection in policy methods', () => {
             let STRING = "HELLO!";
             let gate = app.get('gate');
             app.service('testStr', STRING);
-            expect(gate.allows({beforeCalled:false}, 'custom.dinner', {})).to.equal(STRING);
+            let test = gate.allows({beforeCalled:false}, 'custom.dinner', {});
+            expect(test.complete).to.equal(true);
+            expect(test.passed).to.equal(true);
+            expect(test.message).to.equal(STRING);
         });
 
         it('pro: should allow building extensions of Policy class with reference object', () => {
@@ -131,10 +156,16 @@ describe('Gate', function()
             expect(policy).to.be.instanceOf(TestPolicy);
             expect(policy.name).to.equal('Test');
         });
-        it('pro: should always return true because of before() call', () => {
+        it('pro: should always return passing tests because of before() call', () => {
             let gate = app.get('gate');
-            expect(gate.allows({},'Test.breakfast')).to.equal(true);
-            expect(gate.allows({},'Test.lunch')).to.equal(true);
+            let test0 = gate.allows({},'Test.breakfast');
+            let test1 = gate.allows({},'Test.lunch');
+            expect(test0.complete).to.equal(true);
+            expect(test1.complete).to.equal(true);
+            expect(test0.passed).to.equal(true);
+            expect(test1.passed).to.equal(true);
+            expect(test0.message).to.equal('good');
+            expect(test1.message).to.equal('good');
         });
         it('pro: should allow building extensions of policy with policy instance as argument', () => {
             let gate = app.get('gate');

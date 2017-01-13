@@ -21,12 +21,13 @@ class Policy
     /**
      * Run this method before any other method is called.
      * @injectable
-     * @param user
-     * @param ability
-     * @param object
+     * @param test {PolicyTest}
+     * @param user {Object}
+     * @param ability {String}
+     * @param object {*}
      * @returns boolean|void
      */
-    before(user,ability,object) {
+    before(test,user,ability,object) {
         // Unimplemented
     }
 }

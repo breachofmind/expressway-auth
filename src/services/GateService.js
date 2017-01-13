@@ -1,10 +1,11 @@
 "use strict";
 
-var Policy = require('../Policy');
+var _                = require('lodash');
+var Policy           = require('../Policy');
+var PolicyTest       = require('../PolicyTest');
 var ObjectCollection = require('expressway/src/ObjectCollection');
-var _ = require('lodash');
 
-module.exports = function(app,log,debug)
+module.exports = function(app,debug)
 {
     /**
      * Gate class
@@ -15,7 +16,12 @@ module.exports = function(app,log,debug)
         constructor(app)
         {
             super(app,'policy');
+
             this.class = Policy;
+
+            this.on('add', (name,value) => {
+                debug('Gate add policy: %s', name);
+            })
         }
 
         /**
@@ -23,31 +29,35 @@ module.exports = function(app,log,debug)
          * @param user User
          * @param ability string - ie, "create" or "Object.create", where Object is the Policy name
          * @param object Model - optional
-         * @returns {boolean}
+         * @returns {PolicyTest}
          */
-        allows(user, ability, object)
+        allows(user,ability,object)
         {
-            let policy,
-                policyName = ability;
+            let [policyName, method] = __getPolicyArgs(ability);
 
-            if (ability.indexOf(".") > -1) {
-                [policyName,ability] = ability.split(".");
-            }
+            let test = new PolicyTest(user,method,object);
 
             // If there isn't a policy defined for this action, don't allow.
-            if (! this.has(policyName)) return false;
-
-            policy = this.get(policyName);
-
-            let passed = app.call(policy, 'before', [user, ability, object]);
-            if (typeof passed === 'boolean') {
-                return passed;
-            }
-            if (typeof policy[ability] !== 'function') {
-                throw new Error(`policy method does not exist: ${policy.name}.${ability}`);
+            if (! this.has(policyName)) {
+                return test.fail('auth.gate_policyNotDefined');
             }
 
-            return app.call(policy, ability, [user,ability,object]);
+            let policy = this.get(policyName);
+
+            if (typeof policy[method] !== 'function') {
+                return test.fail('auth.gate_policyMethodNotDefined');
+            }
+
+            // Call the before method first.
+            app.call(policy, 'before', [test,user,ability,object]);
+
+            if (test.complete) return test;
+
+            // Call the ability method next.
+            app.call(policy, method, [test,user,ability,object]);
+
+            // Return the resulting test.
+            return test;
         }
 
         /**
@@ -100,5 +110,23 @@ module.exports = function(app,log,debug)
         }
     }
 
+
     return new Gate;
 };
+
+/**
+ * Get the arguments for gate.allows()
+ * @param ability string
+ * @returns {[*,*]}
+ * @private
+ */
+function __getPolicyArgs(ability)
+{
+    let policyName = ability;
+
+    if (ability.indexOf(".") > -1) {
+        [policyName,ability] = ability.split(".");
+    }
+
+    return [policyName,ability];
+}
