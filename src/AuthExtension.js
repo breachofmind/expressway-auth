@@ -21,16 +21,16 @@ class AuthExtension extends Extension
 
         this.package = require('../package.json');
 
-        this.base = "/auth";
-        this.successUri = "/";
-        this.loginUri = this.base + "/login";
-        this.forgotUri = this.base + "/login/reset";
-        this.loginView = "auth/login";
-        this.forgotView = "auth/forgot";
-        this.resetView = "auth/reset";
+        this.base           = "/auth";
+        this.successUri     = "/";
+        this.loginUri       = this.base + "/login";
+        this.forgotUri      = this.base + "/login/reset";
+        this.loginView      = "auth/login";
+        this.forgotView     = "auth/forgot";
+        this.resetView      = "auth/reset";
         this.resetEmailView = "email/reset";
 
-        this.middleware = [
+        this.routes.middleware([
             'Init',
             'ConsoleLogging',
             'Localization',
@@ -39,17 +39,19 @@ class AuthExtension extends Extension
             'CSRF',
             'Flash',
             'BasicAuth',
-        ];
+        ]);
 
-        this.routes = {
-            'GET  /login'            : 'AuthController.login',
-            'GET  /logout'           : 'AuthController.logout',
-            'GET  /login/reset'      : 'AuthController.forgot',
-            'GET  /login/reset/:hash': 'AuthController.lookup',
-            'POST /login'            : 'AuthController.authenticate',
-            'POST /login/reset'      : 'AuthController.request_reset',
-            'POST /login/reset/:hash': 'AuthController.perform_reset',
-        };
+        this.routes.add([
+            {
+                'GET  /login'            : 'AuthController.login',
+                'GET  /logout'           : 'AuthController.logout',
+                'GET  /login/reset'      : 'AuthController.forgot',
+                'GET  /login/reset/:hash': 'AuthController.lookup',
+                'POST /login'            : 'AuthController.authenticate',
+                'POST /login/reset'      : 'AuthController.request_reset',
+                'POST /login/reset/:hash': 'AuthController.perform_reset',
+            }
+        ]);
     }
 }
 
