@@ -5,11 +5,14 @@ var path = require('path');
 
 class AuthExtension extends Extension
 {
-    constructor(app)
+    /**
+     * Constructor.
+     * @param app {Application}
+     * @param config {Function}
+     */
+    constructor(app,config)
     {
         super(app);
-
-        this.alias = "auth";
 
         app.use([
             require('./middlewares/AuthRequired'),
@@ -21,8 +24,8 @@ class AuthExtension extends Extension
 
         this.package = require('../package.json');
 
-        this.base           = "/auth";
-        this.successUri     = "/";
+        this.base           = config('auth.base', "/auth");
+        this.successUri     = config('auth.redirect', "/");
         this.loginUri       = this.base + "/login";
         this.forgotUri      = this.base + "/login/reset";
         this.loginView      = "auth/login";
@@ -30,28 +33,19 @@ class AuthExtension extends Extension
         this.resetView      = "auth/reset";
         this.resetEmailView = "email/reset";
 
-        this.routes.middleware([
-            'Init',
-            'ConsoleLogging',
-            'Localization',
-            'BodyParser',
-            'Session',
-            'CSRF',
-            'Flash',
-            'BasicAuth',
-        ]);
+        let routes = require('./config/routes');
+        this.routes.middleware(routes.middleware);
+        if (config('auth.useRoutes', true)) {
+            this.routes.add(routes.paths);
+        }
+    }
 
-        this.routes.add([
-            {
-                'GET  /login'            : 'AuthController.login',
-                'GET  /logout'           : 'AuthController.logout',
-                'GET  /login/reset'      : 'AuthController.forgot',
-                'GET  /login/reset/:hash': 'AuthController.lookup',
-                'POST /login'            : 'AuthController.authenticate',
-                'POST /login/reset'      : 'AuthController.request_reset',
-                'POST /login/reset/:hash': 'AuthController.perform_reset',
-            }
-        ]);
+    /**
+     * Get the alias for this extension.
+     * @returns {string}
+     */
+    get alias() {
+        return 'auth';
     }
 }
 
