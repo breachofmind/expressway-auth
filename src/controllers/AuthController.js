@@ -100,7 +100,7 @@ class AuthController extends Controller
             {
                 if (err) return kill(info);
 
-                return request.ajax
+                return request.xhr
                     ? response.smart({success:true, user:user, redirect:auth.successUri}, 200)
                     : response.redirect(redirectTo);
             });
